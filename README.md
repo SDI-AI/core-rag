@@ -1,2 +1,4 @@
+[![@SDI_AI](https://img.shields.io/badge/%40SDI__AI-70B%20RAG-blue?style=flat&logo=x&logoColor=white)](https://x.com/SDI_AI) [![GitHub](https://img.shields.io/badge/GitHub-SDI--AI-black?style=flat&logo=github)](https://github.com/SDI-AI)
+
 # core-rag
-Extensible Core RAG engine for air-gapped 70B LLMs on DGX Spark. 1M docs in &lt;30 min, 0.8s latency. No cloud. 4 industry forks. #DGXSpark
+*Air-gapped 70B RAG engine on DGX Spark — Defense, Rail, Finance, Healthcare.*
