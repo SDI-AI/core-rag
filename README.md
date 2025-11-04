@@ -17,3 +17,5 @@
 ## ⚡ Stack
 ```text
 PyTorch | Llama.cpp | FAISS-GPU | Flower | NVLink
+
+# Day 2 — 10k fake CUI docs
