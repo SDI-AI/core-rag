@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+config.local.json
+index/*.sqlite
+index/*.sqlite-*
+models/*.gguf
+models/*.bin
+results/*
+!results/.gitkeep

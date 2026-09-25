@@ -1,0 +1,19 @@
+[project]
+name = "core-rag"
+version = "0.1.0"
+description = "Air-gapped RAG for Getac rugged tablets"
+requires-python = ">=3.11"
+readme = "README.md"
+
+[project.scripts]
+core-rag = "core_rag.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["core_rag*"]
+
+[tool.setuptools.package-data]
+core_rag = ["page.html"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"

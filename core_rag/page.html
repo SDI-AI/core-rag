@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>core-rag</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #161616;
+      --muted: #3f3f3f;
+      --paper: #f4f1e8;
+      --card: #fffdf8;
+      --line: #1c1c1c;
+      --accent: #9a3412;
+      --accent-ink: #fffaf5;
+      --warn: #7c2d12;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      font-size: 1.125rem;
+      line-height: 1.45;
+    }
+    main {
+      max-width: 46rem;
+      margin: 0 auto;
+      padding: 1rem 1rem 3rem;
+    }
+    h1 {
+      font-size: 1.6rem;
+      line-height: 1.2;
+      margin: 0 0 0.25rem;
+    }
+    .lede, .hint { color: var(--muted); margin: 0 0 1rem; }
+    #health {
+      border: 2px solid var(--line);
+      background: var(--card);
+      padding: 0.75rem;
+      margin-bottom: 1rem;
+      font-size: 0.95rem;
+    }
+    textarea {
+      width: 100%;
+      min-height: 6rem;
+      font: inherit;
+      padding: 0.75rem;
+      border: 2px solid var(--line);
+      background: white;
+      color: var(--ink);
+      resize: vertical;
+    }
+    button {
+      width: 100%;
+      margin-top: 0.75rem;
+      min-height: 3.25rem;
+      font: inherit;
+      font-weight: 650;
+      background: var(--accent);
+      color: var(--accent-ink);
+      border: 2px solid var(--line);
+    }
+    button.sample {
+      width: auto;
+      margin: 0;
+      min-height: 2.75rem;
+      padding: 0.35rem 0.8rem;
+      background: var(--card);
+      color: var(--ink);
+      font-weight: 600;
+    }
+    .samples { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 0.75rem; }
+    button:disabled { opacity: 0.6; }
+    #status { min-height: 1.5rem; margin: 0.75rem 0; font-weight: 650; }
+    h2 { font-size: 1.15rem; margin: 1.25rem 0 0.4rem; }
+    article {
+      background: var(--card);
+      border: 2px solid var(--line);
+      padding: 0.75rem;
+      margin: 0.6rem 0;
+    }
+    article h3 { margin: 0 0 0.35rem; font-size: 1rem; }
+    .answer {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      background: var(--card);
+      border: 2px solid var(--line);
+      padding: 0.75rem;
+    }
+    .warn { color: var(--warn); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>core-rag</h1>
+    <p class="lede">Local search on this tablet. Nothing on this page is sent off the machine.</p>
+    <div id="health">Checking the local index…</div>
+    <p id="samples-label">Sample queries</p>
+    <div class="samples">
+      <button type="button" class="sample" data-q="Which operations have a HIGH threat and Extract VIP?">Extract VIP, HIGH threat</button>
+      <button type="button" class="sample" data-q="Secure perimeter with a LOW threat">Secure perimeter, LOW threat</button>
+      <button type="button" class="sample" data-q="What intel reports have Confidence 95?">Intel, 95% confidence</button>
+    </div>
+    <label for="q">Question</label>
+    <textarea id="q" placeholder="Or type a question"></textarea>
+    <button id="go" type="button">Search</button>
+    <p class="hint">Click a sample or press Enter. Shift+Enter adds a line. A model answer can take a minute on a Getac.</p>
+    <p id="status" role="status"></p>
+    <h2>Answer</h2>
+    <div id="answer" class="answer">Ask a question to search the local index.</div>
+    <h2>Passages</h2>
+    <div id="passages"></div>
+  </main>
+  <script>
+    const q = document.querySelector("#q");
+    const go = document.querySelector("#go");
+    const status = document.querySelector("#status");
+    const answer = document.querySelector("#answer");
+    const passages = document.querySelector("#passages");
+    const health = document.querySelector("#health");
+
+    function setBusy(busy) {
+      go.disabled = busy;
+      document.querySelectorAll(".sample").forEach(function (button) {
+        button.disabled = busy;
+      });
+    }
+
+    function base(path) {
+      const parts = String(path).split(/[\\/]/);
+      return parts[parts.length - 1] || path;
+    }
+
+    async function refreshHealth() {
+      try {
+        const res = await fetch("/api/health");
+        const data = await res.json();
+        const model = data.model_ready ? "model loaded" : "no generation model";
+        const where = (data.host === "0.0.0.0" || data.host === "::")
+          ? "Reachable from other machines on this network."
+          : "Listening on this machine only.";
+        health.textContent = data.chunks + " chunks indexed. " + model + ". " + where;
+      } catch (err) {
+        health.textContent = "Could not read local status.";
+      }
+    }
+
+    async function submit() {
+      const question = q.value.trim();
+      if (!question) {
+        status.textContent = "Type a question first.";
+        return;
+      }
+      setBusy(true);
+      status.textContent = "Searching the local index. Generation, if a model is loaded, can take a minute.";
+      answer.textContent = "";
+      passages.textContent = "";
+      try {
+        const res = await fetch("/api/query", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: question })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          status.textContent = data.error || "Query failed.";
+          return;
+        }
+        status.textContent = data.notice || (data.generated ? "Answered from the local model." : "");
+        if (data.notice) status.className = "warn";
+        else status.className = "";
+        answer.textContent = data.answer || "Passages are below. No generated answer.";
+        (data.passages || []).forEach(function (passage, index) {
+          const card = document.createElement("article");
+          const title = document.createElement("h3");
+          title.textContent = "[" + (index + 1) + "] " + passage.doc_id + "  " + base(passage.source);
+          const body = document.createElement("div");
+          body.textContent = passage.text;
+          card.appendChild(title);
+          card.appendChild(body);
+          passages.appendChild(card);
+        });
+      } catch (err) {
+        status.textContent = "The local page could not reach the core-rag process.";
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    document.querySelectorAll(".sample").forEach(function (button) {
+      button.addEventListener("click", function () {
+        q.value = button.getAttribute("data-q");
+        submit();
+      });
+    });
+    go.addEventListener("click", submit);
+    q.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        submit();
+      }
+    });
+    refreshHealth();
+  </script>
+</body>
+</html>
